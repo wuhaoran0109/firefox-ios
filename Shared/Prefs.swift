@@ -14,6 +14,7 @@ public struct PrefsKeys {
     public static let KeyMailToOption = "MailToOption"
     public static let HasFocusInstalled = "HasFocusInstalled"
     public static let HasPocketInstalled = "HasPocketInstalled"
+    public static let HasLeanplumStarted = "HasLeanplumStarted"
 
     //Activity Stream
     public static let KeyTopSitesCacheIsValid = "topSitesCacheIsValid"
@@ -30,7 +31,6 @@ public struct PrefsKeys {
     public static let KeyCustomSyncOauth = "customSyncOauthServer"
     public static let KeyCustomSyncAuth = "customSyncAuthServer"
     public static let KeyCustomSyncWeb = "customSyncWebServer"
-
 }
 
 public struct PrefsDefaults {

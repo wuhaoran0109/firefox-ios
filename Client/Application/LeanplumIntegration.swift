@@ -103,6 +103,7 @@ class LeanplumIntegration {
 
     fileprivate weak var profile: Profile?
     private var enabled: Bool = false
+    private var useFxAPrePush: Bool = false
     
     fileprivate func shouldSendToLP() -> Bool {
         // Need to be run on main thread since isInPrivateMode requires to be on the main thread.
@@ -117,25 +118,30 @@ class LeanplumIntegration {
     fileprivate func start() {
         guard AppConstants.MOZ_ENABLE_LEANPLUM else {
             enabled = false
+            self.profile?.prefs.setBool(false, forKey: PrefsKeys.HasLeanplumStarted)
             return
         }
 
         self.enabled = self.profile?.prefs.boolForKey(AppConstants.PrefSendUsageData) ?? true
         if !self.enabled {
+            self.profile?.prefs.setBool(false, forKey: PrefsKeys.HasLeanplumStarted)
             return
         }
         
         guard SupportedLocales(rawValue: Locale.current.identifier) != nil else {
+            self.profile?.prefs.setBool(false, forKey: PrefsKeys.HasLeanplumStarted)
             return
         }
 
         if Leanplum.hasStarted() {
             log.error("LeanplumIntegration - Already initialized")
+            self.profile?.prefs.setBool(true, forKey: PrefsKeys.HasLeanplumStarted)
             return
         }
 
         guard let settings = getSettings() else {
             log.error("LeanplumIntegration - Could not load settings from Info.plist")
+            self.profile?.prefs.setBool(false, forKey: PrefsKeys.HasLeanplumStarted)
             return
         }
 
@@ -167,6 +173,17 @@ class LeanplumIntegration {
 
         self.setupCustomTemplates()
         
+        // This defines an external Leanplum varible to enable/disable FxA prepush dialogs.
+        // The primary result is having a feature flag controlled by Leanplum, and falling back
+        // to prompting with native permissions.
+        let useFxAPrePush = LPVar.define("useFxAPrePush", with: false)
+        Leanplum.onVariablesChanged {
+            guard let prePushEnabled = useFxAPrePush?.boolValue() else {
+                return
+            }
+            self.useFxAPrePush = prePushEnabled
+        }
+        
         Leanplum.start(withUserId: nil, userAttributes: userAttributesDict, responseHandler: { _ in
             self.track(eventName: LeanplumEventName.openedApp)
 
@@ -195,6 +212,8 @@ class LeanplumIntegration {
                     self.track(eventName: LeanplumEventName.downloadedPocket)
                 }
             }
+            
+            self.profile?.prefs.setBool(true, forKey: PrefsKeys.HasLeanplumStarted)
         })
     }
 
@@ -226,6 +245,18 @@ class LeanplumIntegration {
         if enabled { start() }
         self.enabled = enabled
         Leanplum.setTestModeEnabled(!enabled)
+    }
+    
+    func getEnabled() -> Bool {
+        // Certain services like FxA prepush dialogs need to know that Leanplum has started and can run A/B tests
+        return self.profile?.prefs.boolForKey(PrefsKeys.HasLeanplumStarted) ?? false
+    }
+    
+    func isFxAPrePushEnabled() -> Bool {
+        if AppConstants.MOZ_FXA_LEANPLUM_AB_PUSH_TEST {
+            return self.useFxAPrePush
+        }
+        return false
     }
 
     func canInstallFocus() -> Bool {
@@ -294,6 +325,11 @@ class LeanplumIntegration {
         ]
         
         let responder: LeanplumActionBlock = { (context) -> Bool in
+            // Before proceeding, double check that Leanplum FxA prepush config value has been enabled.
+            if !self.isFxAPrePushEnabled() {
+                return false
+            }
+            
             guard let context = context else {
                 return false
             }
