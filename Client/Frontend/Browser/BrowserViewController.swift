@@ -201,7 +201,7 @@ class BrowserViewController: UIViewController {
             toolbar = TabToolbar()
             footer.addSubview(toolbar!)
             toolbar?.tabToolbarDelegate = self
-            let theme = (tabManager.selectedTab?.isPrivate ?? false) ? Theme.PrivateMode : Theme.NormalMode
+            let theme = (tabManager.selectedTab?.isPrivate ?? false) ? Theme.Private : Theme.Normal
             toolbar?.applyTheme(theme)
             updateTabCountUsingTabManager(self.tabManager)
         }
@@ -258,7 +258,7 @@ class BrowserViewController: UIViewController {
         coordinator.animate(alongsideTransition: { context in
             self.scrollController.showToolbars(animated: false)
             if self.isViewLoaded {
-                self.statusBarOverlay.backgroundColor = self.shouldShowTopTabsForTraitCollection(self.traitCollection) ? UIColor(rgb: 0x272727) : self.urlBar.backgroundColor
+                self.statusBarOverlay.backgroundColor = self.shouldShowTopTabsForTraitCollection(self.traitCollection) ? UIColor.Defaults.Grey80 : self.urlBar.backgroundColor
                 self.setNeedsStatusBarAppearanceUpdate()
             }
             }, completion: nil)
@@ -702,7 +702,7 @@ class BrowserViewController: UIViewController {
             return
         }
         let isPrivate = tabManager.selectedTab?.isPrivate ?? false
-        homePanelController.applyTheme(isPrivate ? Theme.PrivateMode : Theme.NormalMode)
+        homePanelController.applyTheme(isPrivate ? Theme.Private : Theme.Normal)
         let panelNumber = tabManager.selectedTab?.url?.fragment
 
         // splitting this out to see if we can get better crash reports when this has a problem
@@ -1589,6 +1589,11 @@ extension BrowserViewController: TabToolbarDelegate, PhotonActionSheetProtocol {
         controller.addAction(UIAlertAction(title: Strings.NewPrivateTabTitle, style: .default, handler: { _ in
             self.tabManager.addTabAndSelect(isPrivate: true)
         }))
+        controller.addAction(UIAlertAction(title: Strings.CloseTabTitle, style: .destructive, handler: { _ in
+            if let tab = self.tabManager.selectedTab {
+                self.tabManager.removeTab(tab)
+            }
+        }))
         controller.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: "Label for Cancel button"), style: .cancel, handler: nil))
         controller.popoverPresentationController?.sourceView = toolbar ?? urlBar
         controller.popoverPresentationController?.sourceRect = button.frame
@@ -1623,6 +1628,9 @@ extension BrowserViewController: TabDelegate {
         webView.scrollView.addObserver(self.scrollController, forKeyPath: KVOContentSize, options: .new, context: nil)
 
         webView.uiDelegate = self
+
+        let formPostHelper = FormPostHelper(tab: tab)
+        tab.addHelper(formPostHelper, name: FormPostHelper.name())
 
         let readerMode = ReaderMode(tab: tab)
         readerMode.delegate = self
@@ -1895,7 +1903,7 @@ extension BrowserViewController: TabManagerDelegate {
         if let tab = selected, let webView = tab.webView {
             updateURLBarDisplayURL(tab)
             if tab.isPrivate != previous?.isPrivate {
-                applyTheme(tab.isPrivate ? Theme.PrivateMode : Theme.NormalMode)
+                applyTheme(tab.isPrivate ? Theme.Private : Theme.Normal)
             }
             if tab.isPrivate {
                 readerModeCache = MemoryReaderModeCache.sharedInstance
@@ -2059,8 +2067,15 @@ extension BrowserViewController: WKUIDelegate {
             screenshotHelper.takeScreenshot(currentTab)
         }
 
+        let request: URLRequest
+        if let formPostHelper = parentTab.getHelper(name: "FormPostHelper") as? FormPostHelper {
+            request = formPostHelper.urlRequestForNavigationAction(navigationAction)
+        } else {
+            request = navigationAction.request
+        }
+
         // If the page uses window.open() or target="_blank", open the page in a new tab.
-        let newTab = tabManager.addTab(navigationAction.request, configuration: configuration, afterTab: parentTab, isPrivate: parentTab.isPrivate)
+        let newTab = tabManager.addTab(request, configuration: configuration, afterTab: parentTab, isPrivate: parentTab.isPrivate)
         tabManager.selectTab(newTab)
 
         // If the page we just opened has a bad scheme, we return nil here so that JavaScript does not
@@ -2245,9 +2260,9 @@ extension BrowserViewController {
     func updateReaderModeBar() {
         if let readerModeBar = readerModeBar {
             if let tab = self.tabManager.selectedTab, tab.isPrivate {
-                readerModeBar.applyTheme(Theme.PrivateMode)
+                readerModeBar.applyTheme(.Private)
             } else {
-                readerModeBar.applyTheme(Theme.NormalMode)
+                readerModeBar.applyTheme(.Normal)
             }
             if let url = self.tabManager.selectedTab?.url?.displayURL?.absoluteString, let result = profile.readingList?.getRecordWithURL(url) {
                 if let successValue = result.successValue, let record = successValue {
@@ -2596,7 +2611,7 @@ extension BrowserViewController: ContextMenuHelperDelegate {
                     }
                 } else {
                     let accessDenied = UIAlertController(title: NSLocalizedString("Firefox would like to access your Photos", comment: "See http://mzl.la/1G7uHo7"), message: NSLocalizedString("This allows you to save the image to your Camera Roll.", comment: "See http://mzl.la/1G7uHo7"), preferredStyle: UIAlertControllerStyle.alert)
-                    let dismissAction = UIAlertAction(title: UIConstants.CancelString, style: UIAlertActionStyle.default, handler: nil)
+                    let dismissAction = UIAlertAction(title: Strings.CancelString, style: UIAlertActionStyle.default, handler: nil)
                     accessDenied.addAction(dismissAction)
                     let settingsAction = UIAlertAction(title: NSLocalizedString("Open Settings", comment: "See http://mzl.la/1G7uHo7"), style: UIAlertActionStyle.default ) { (action: UIAlertAction!) -> Void in
                         UIApplication.shared.open(URL(string: UIApplicationOpenSettingsURLString)!, options: [:])
@@ -2649,7 +2664,7 @@ extension BrowserViewController: ContextMenuHelperDelegate {
         }
 
         actionSheetController.title = dialogTitle?.ellipsize(maxLength: ActionSheetTitleMaxLength)
-        let cancelAction = UIAlertAction(title: UIConstants.CancelString, style: UIAlertActionStyle.cancel, handler: nil)
+        let cancelAction = UIAlertAction(title: Strings.CancelString, style: UIAlertActionStyle.cancel, handler: nil)
         actionSheetController.addAction(cancelAction)
         self.present(actionSheetController, animated: true, completion: nil)
     }
@@ -2877,17 +2892,15 @@ extension BrowserViewController: TabTrayDelegate {
 // MARK: Browser Chrome Theming
 extension BrowserViewController: Themeable {
 
-    func applyTheme(_ themeName: String) {
+    func applyTheme(_ theme: Theme) {
         let ui: [Themeable?] = [urlBar, toolbar, readerModeBar, topTabsViewController]
-        ui.forEach { $0?.applyTheme(themeName) }
-        statusBarOverlay.backgroundColor = shouldShowTopTabsForTraitCollection(traitCollection) ? UIColor(rgb: 0x272727) : urlBar.backgroundColor
+        ui.forEach { $0?.applyTheme(theme) }
+        statusBarOverlay.backgroundColor = shouldShowTopTabsForTraitCollection(traitCollection) ? UIColor.Defaults.Grey80 : urlBar.backgroundColor
         setNeedsStatusBarAppearanceUpdate()
     }
 }
 
-protocol Themeable {
-    func applyTheme(_ themeName: String)
-}
+
 
 extension BrowserViewController: FindInPageBarDelegate, FindInPageHelperDelegate {
     func findInPage(_ findInPage: FindInPageBar, didTextChange text: String) {
