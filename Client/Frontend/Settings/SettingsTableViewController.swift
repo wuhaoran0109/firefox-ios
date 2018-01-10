@@ -77,9 +77,9 @@ class Setting: NSObject {
         }
         cell.accessibilityTraits = UIAccessibilityTraitButton
         cell.indentationWidth = 0
-        cell.layoutMargins = UIEdgeInsets.zero
+        cell.layoutMargins = .zero
         // So that the separator line goes all the way to the left edge.
-        cell.separatorInset = UIEdgeInsets.zero
+        cell.separatorInset = .zero
     }
 
     // Called when the pref is tapped.
@@ -186,7 +186,7 @@ class BoolSetting: Setting {
 
         let control = UISwitch()
         control.onTintColor = UIConstants.SystemBlueColor
-        control.addTarget(self, action: #selector(BoolSetting.switchValueChanged(_:)), for: UIControlEvents.valueChanged)
+        control.addTarget(self, action: #selector(BoolSetting.switchValueChanged), for: .valueChanged)
         control.accessibilityIdentifier = prefKey
         
         displayBool(control)
@@ -205,6 +205,7 @@ class BoolSetting: Setting {
     @objc func switchValueChanged(_ control: UISwitch) {
         writeBool(control)
         settingDidChange?(control.isOn)
+        UnifiedTelemetry.recordEvent(category: .action, method: .change, object: .setting, value: self.prefKey, extras: ["to": control.isOn])
     }
 
     // These methods allow a subclass to control how the pref is saved
@@ -223,29 +224,60 @@ class BoolSetting: Setting {
     }
 }
 
+class PrefPersister: SettingValuePersister {
+    fileprivate let prefs: Prefs
+    let prefKey: String
+
+    init(prefs: Prefs, prefKey: String) {
+        self.prefs = prefs
+        self.prefKey = prefKey
+    }
+
+    func readPersistedValue() -> String? {
+        return prefs.stringForKey(prefKey)
+    }
+
+    func writePersistedValue(value: String?) {
+        if let value = value {
+            prefs.setString(value, forKey: prefKey)
+        } else {
+            prefs.removeObjectForKey(prefKey)
+        }
+    }
+}
+
+class StringPrefSetting: StringSetting {
+    init(prefs: Prefs, prefKey: String, defaultValue: String? = nil, placeholder: String, accessibilityIdentifier: String, settingIsValid isValueValid: ((String?) -> Bool)? = nil, settingDidChange: ((String?) -> Void)? = nil) {
+        super.init(defaultValue: defaultValue, placeholder: placeholder, accessibilityIdentifier: accessibilityIdentifier, persister: PrefPersister(prefs: prefs, prefKey: prefKey), settingIsValid: isValueValid, settingDidChange: settingDidChange)
+    }
+}
+
+protocol SettingValuePersister {
+    func readPersistedValue() -> String?
+    func writePersistedValue(value: String?)
+}
+
 /// A helper class for a setting backed by a UITextField.
 /// This takes an optional settingIsValid and settingDidChange callback
 /// If settingIsValid returns false, the Setting will not change and the text remains red.
 class StringSetting: Setting, UITextFieldDelegate {
 
-    let prefKey: String
-    fileprivate let Padding: CGFloat = 8
+    var Padding: CGFloat = 8
 
-    fileprivate let prefs: Prefs
     fileprivate let defaultValue: String?
     fileprivate let placeholder: String
     fileprivate let settingDidChange: ((String?) -> Void)?
     fileprivate let settingIsValid: ((String?) -> Bool)?
+    fileprivate let persister: SettingValuePersister
 
     let textField = UITextField()
 
-    init(prefs: Prefs, prefKey: String, defaultValue: String? = nil, placeholder: String, accessibilityIdentifier: String, settingIsValid isValueValid: ((String?) -> Bool)? = nil, settingDidChange: ((String?) -> Void)? = nil) {
-        self.prefs = prefs
-        self.prefKey = prefKey
+    init(defaultValue: String? = nil, placeholder: String, accessibilityIdentifier: String, persister: SettingValuePersister, settingIsValid isValueValid: ((String?) -> Bool)? = nil, settingDidChange: ((String?) -> Void)? = nil) {
         self.defaultValue = defaultValue
         self.settingDidChange = settingDidChange
         self.settingIsValid = isValueValid
         self.placeholder = placeholder
+        self.persister = persister
 
         super.init()
         self.accessibilityIdentifier = accessibilityIdentifier
@@ -269,7 +301,7 @@ class StringSetting: Setting, UITextFieldDelegate {
             make.trailing.equalTo(cell.contentView).offset(-Padding)
             make.leading.equalTo(cell.contentView).offset(Padding)
         }
-        textField.text = prefs.stringForKey(prefKey) ?? defaultValue
+        textField.text = self.persister.readPersistedValue() ?? defaultValue
         textFieldDidChange(textField)
     }
 
@@ -305,11 +337,7 @@ class StringSetting: Setting, UITextFieldDelegate {
         if !isValid(text) {
             return
         }
-        if let text = prepareValidValue(userInput: text) {
-            prefs.setString(text, forKey: prefKey)
-        } else {
-            prefs.removeObjectForKey(prefKey)
-        }
+        self.persister.writePersistedValue(value: prepareValidValue(userInput: text))
         // Call settingDidChange with text or nil.
         settingDidChange?(text)
     }
@@ -372,7 +400,7 @@ class ButtonSetting: Setting {
         } else {
             cell.textLabel?.textColor = SettingsUX.TableViewDisabledRowTextColor
         }
-        cell.textLabel?.textAlignment = NSTextAlignment.center
+        cell.textLabel?.textAlignment = .center
         cell.accessibilityTraits = UIAccessibilityTraitButton
         cell.selectionStyle = .none
     }

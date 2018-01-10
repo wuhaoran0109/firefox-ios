@@ -13,7 +13,7 @@ protocol ClipboardBarDisplayHandlerDelegate: class {
     func shouldDisplay(clipboardBar bar: ButtonToast)
 }
 
-class ClipboardBarDisplayHandler: NSObject {
+class ClipboardBarDisplayHandler: NSObject, URLChangeDelegate {
     weak var delegate: (ClipboardBarDisplayHandlerDelegate & SettingsDelegate)?
     weak var settingsDelegate: SettingsDelegate?
     weak var tabManager: TabManager?
@@ -22,7 +22,7 @@ class ClipboardBarDisplayHandler: NSObject {
     private var firstTabLoaded = false
     private var prefs: Prefs
     private var lastDisplayedURL: String?
-    private var firstTab: Tab?
+    private weak var firstTab: Tab?
     var clipboardToast: ButtonToast?
     
     init(prefs: Prefs, tabManager: TabManager) {
@@ -31,24 +31,18 @@ class ClipboardBarDisplayHandler: NSObject {
 
         super.init()
 
-        NotificationCenter.default.addObserver(self, selector: #selector(SELUIPasteboardChanged), name: NSNotification.Name.UIPasteboardChanged, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(SELAppWillEnterForegroundNotification), name: NSNotification.Name.UIApplicationWillEnterForeground, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(SELUIPasteboardChanged), name: .UIPasteboardChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(SELAppWillEnterForegroundNotification), name: .UIApplicationWillEnterForeground, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(SELDidRestoreSession), name: NotificationDidRestoreSession, object: nil)
-    }
-
-    deinit {
-        if !firstTabLoaded {
-            firstTab?.webView?.removeObserver(self, forKeyPath: "URL")
-        }
     }
     
     @objc private func SELUIPasteboardChanged() {
-        // UIPasteboardChanged gets triggered when callng UIPasteboard.general
-         NotificationCenter.default.removeObserver(self, name: NSNotification.Name.UIPasteboardChanged, object: nil)
+        // UIPasteboardChanged gets triggered when calling UIPasteboard.general.
+         NotificationCenter.default.removeObserver(self, name: .UIPasteboardChanged, object: nil)
 
         UIPasteboard.general.asyncURL().uponQueue(.main) { res in
             defer {
-                NotificationCenter.default.addObserver(self, selector: #selector(self.SELUIPasteboardChanged), name: NSNotification.Name.UIPasteboardChanged, object: nil)
+                NotificationCenter.default.addObserver(self, selector: #selector(self.SELUIPasteboardChanged), name: .UIPasteboardChanged, object: nil)
             }
 
             guard let copiedURL: URL? = res.successValue,
@@ -64,13 +58,21 @@ class ClipboardBarDisplayHandler: NSObject {
         checkIfShouldDisplayBar()
     }
 
+    private func observeURLForFirstTab(firstTab: Tab) {
+        if firstTab.webView == nil {
+            // Nothing to do; bail out.
+            firstTabLoaded = true
+            return
+        }
+        self.firstTab = firstTab
+        firstTab.observeURLChanges(delegate: self)
+    }
+
     @objc private func SELDidRestoreSession() {
         DispatchQueue.main.sync {
             if let tabManager = self.tabManager,
-                let firstTab = tabManager.selectedTab,
-                let webView = firstTab.webView {
-                self.firstTab = firstTab
-                webView.addObserver(self, forKeyPath: "URL", options: .new, context: nil)
+                let firstTab = tabManager.selectedTab {
+                self.observeURLForFirstTab(firstTab: firstTab)
             } else {
                 firstTabLoaded = true
             }
@@ -82,21 +84,15 @@ class ClipboardBarDisplayHandler: NSObject {
         }
     }
 
-    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+    func tab(_ tab: Tab, urlDidChangeTo url: URL) {
         // Ugly hack to ensure we wait until we're finished restoring the session on the first tab
         // before checking if we should display the clipboard bar.
         guard sessionRestored,
-            let path = keyPath,
-            path == "URL",
-            let firstTab = self.firstTab,
-            let webView = firstTab.webView,
-            let url = firstTab.url?.absoluteString,
-            !url.startsWith("\(WebServer.sharedInstance.base)/about/sessionrestore?history=") else {
+            !url.absoluteString.startsWith("\(WebServer.sharedInstance.base)/about/sessionrestore?history=") else {
             return
         }
 
-        webView.removeObserver(self, forKeyPath: "URL")
-
+        tab.removeURLChangeObserver(delegate: self)
         firstTabLoaded = true
         checkIfShouldDisplayBar()
     }

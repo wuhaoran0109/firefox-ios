@@ -56,38 +56,6 @@ class ConnectSetting: WithoutAccountSetting {
     }
 }
 
-// Sync setting for disconnecting a Firefox Account.  Shown when we have an account.
-class DisconnectSetting: WithAccountSetting {
-    override var accessoryType: UITableViewCellAccessoryType { return .none }
-    override var textAlignment: NSTextAlignment { return .center }
-
-    override var title: NSAttributedString? {
-        return NSAttributedString(string: Strings.SettingsDisconnectSyncButton, attributes: [NSForegroundColorAttributeName: UIConstants.DestructiveRed])
-    }
-
-    override var accessibilityIdentifier: String? { return "SignOut" }
-
-    override func onClick(_ navigationController: UINavigationController?) {
-        let alertController = UIAlertController(
-            title: Strings.SettingsDisconnectSyncAlertTitle,
-            message: NSLocalizedString("Firefox will stop syncing with your account, but won’t delete any of your browsing data on this device.", comment: "Text of the 'sign out firefox account' alert"),
-            preferredStyle: UIAlertControllerStyle.alert)
-        alertController.addAction(
-            UIAlertAction(title: NSLocalizedString("Cancel", comment: "Label for Cancel button"), style: .cancel) { (action) in
-                // Do nothing.
-            })
-        alertController.addAction(
-            UIAlertAction(title: Strings.SettingsDisconnectDestructiveAction, style: .destructive) { (action) in
-                FxALoginHelper.sharedInstance.applicationDidDisconnect(UIApplication.shared)
-                self.settings.settings = self.settings.generateSettings()
-                self.settings.SELfirefoxAccountDidChange()
-
-                LeanplumIntegration.sharedInstance.setUserAttributes(attributes: [UserAttributeKeyName.signedInSync.rawValue: self.profile.hasAccount()])
-            })
-        navigationController?.present(alertController, animated: true, completion: nil)
-    }
-}
-
 class SyncNowSetting: WithAccountSetting {
     static let NotificationUserInitiatedSyncManually = "NotificationUserInitiatedSyncManually"
     let imageView = UIImageView(frame: CGRect(x: 0, y: 0, width: 30, height: 30))
@@ -204,7 +172,7 @@ class SyncNowSetting: WithAccountSetting {
     }
 
     fileprivate lazy var troubleshootButton: UIButton = {
-        let troubleshootButton = UIButton(type: UIButtonType.roundedRect)
+        let troubleshootButton = UIButton(type: .roundedRect)
         troubleshootButton.setTitle(Strings.FirefoxSyncTroubleshootTitle, for: .normal)
         troubleshootButton.addTarget(self, action: #selector(self.troubleshoot), for: .touchUpInside)
         troubleshootButton.tintColor = SettingsUX.TableViewRowActionAccessoryColor
@@ -274,7 +242,7 @@ class SyncNowSetting: WithAccountSetting {
             continuousRotateAnimation.toValue = CGFloat(Double.pi)
             continuousRotateAnimation.isRemovedOnCompletion = true
             continuousRotateAnimation.duration = 0.5
-            continuousRotateAnimation.repeatCount = Float.infinity
+            continuousRotateAnimation.repeatCount = .infinity
             
             // To ensure sync icon is aligned properly with user's avatar, an image is created with proper
             // dimensions and color, then the scaled sync icon is added as a subview.
@@ -417,7 +385,12 @@ class AccountStatusSetting: WithAccountSetting {
 
         if let account = profile.getAccount() {
             switch account.actionNeeded {
-            case .none, .needsVerification:
+            case .none:
+                let viewController = SyncContentSettingsViewController()
+                viewController.profile = profile
+                navigationController?.pushViewController(viewController, animated: true)
+                return
+            case .needsVerification:
                 var cs = URLComponents(url: account.configuration.settingsURL, resolvingAgainstBaseURL: false)
                 cs?.queryItems?.append(URLQueryItem(name: "email", value: account.email))
                 if let url = try? cs?.asURL() {
@@ -711,8 +684,8 @@ class SendAnonymousUsageDataSetting: BoolSetting {
             attributedStatusText: createStatusText(),
             settingDidChange: {
                 AdjustIntegration.setEnabled($0)
-                LeanplumIntegration.sharedInstance.setUserAttributes(attributes: [UserAttributeKeyName.telemetryOptIn.rawValue: $0])
-                LeanplumIntegration.sharedInstance.setEnabled($0)
+                LeanPlumClient.shared.set(attributes: [LPAttributeKey.telemetryOptIn: $0])
+                LeanPlumClient.shared.set(enabled: $0)
             }
         )
     }
@@ -775,28 +748,6 @@ class SearchSetting: Setting {
     }
 }
 
-class SyncSetting: Setting {
-    let profile: Profile
-
-    override var accessoryType: UITableViewCellAccessoryType { return .disclosureIndicator }
-
-    override var accessibilityIdentifier: String? { return "Sync" }
-
-    override var hidden: Bool { return !(profile.hasAccount() && profile.hasSyncableAccount() && profile.syncManager.lastSyncFinishTime != nil) }
-
-    init(settings: SettingsTableViewController) {
-        self.profile = settings.profile
-
-        super.init(title: NSAttributedString(string: Strings.SettingsSyncSectionName, attributes: [NSForegroundColorAttributeName: SettingsUX.TableViewRowTextColor]))
-    }
-
-    override func onClick(_ navigationController: UINavigationController?) {
-        let viewController = SyncContentSettingsViewController()
-        viewController.profile = profile
-        navigationController?.pushViewController(viewController, animated: true)
-    }
-}
-
 class LoginsSetting: Setting {
     let profile: Profile
     var tabManager: TabManager!
@@ -827,7 +778,7 @@ class LoginsSetting: Setting {
     override func onClick(_: UINavigationController?) {
         guard let authInfo = KeychainWrapper.sharedAppContainerKeychain.authenticationInfo() else {
             settings?.navigateToLoginsList()
-            LeanplumIntegration.sharedInstance.track(eventName: .openedLogins)
+            LeanPlumClient.shared.track(event: .openedLogins)
             return
         }
 
@@ -836,7 +787,7 @@ class LoginsSetting: Setting {
             touchIDReason: AuthenticationStrings.loginsTouchReason,
             success: {
                 self.settings?.navigateToLoginsList()
-                LeanplumIntegration.sharedInstance.track(eventName: .openedLogins)
+                LeanPlumClient.shared.track(event: .openedLogins)
             },
             cancel: {
                 self.deselectRow()
@@ -847,7 +798,7 @@ class LoginsSetting: Setting {
             })
         } else {
             settings?.navigateToLoginsList()
-            LeanplumIntegration.sharedInstance.track(eventName: .openedLogins)
+            LeanPlumClient.shared.track(event: .openedLogins)
         }
     }
 }
@@ -867,7 +818,7 @@ class TouchIDPasscodeSetting: Setting {
 
         let title: String
         if localAuthContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) {
-            if #available(iOS 11.0, *), localAuthContext.biometryType == .typeFaceID {
+            if #available(iOS 11.0, *), localAuthContext.biometryType == .faceID {
                 title = AuthenticationStrings.faceIDPasscodeSetting
             } else {
                 title = AuthenticationStrings.touchIDPasscodeSetting
@@ -962,7 +913,7 @@ class ChinaSyncServiceSetting: WithoutAccountSetting {
         super.onConfigureCell(cell)
         let control = UISwitch()
         control.onTintColor = UIConstants.ControlTintColor
-        control.addTarget(self, action: #selector(ChinaSyncServiceSetting.switchValueChanged(_:)), for: UIControlEvents.valueChanged)
+        control.addTarget(self, action: #selector(switchValueChanged), for: .valueChanged)
         control.isOn = prefs.boolForKey(prefKey) ?? self.profile.isChinaEdition
         cell.accessoryView = control
         cell.selectionStyle = .none
@@ -1013,7 +964,7 @@ class StageSyncServiceDebugSetting: WithoutAccountSetting {
         super.onConfigureCell(cell)
         let control = UISwitch()
         control.onTintColor = UIConstants.ControlTintColor
-        control.addTarget(self, action: #selector(StageSyncServiceDebugSetting.switchValueChanged(_:)), for: UIControlEvents.valueChanged)
+        control.addTarget(self, action: #selector(StageSyncServiceDebugSetting.switchValueChanged), for: .valueChanged)
         control.isOn = prefs.boolForKey(prefKey) ?? false
         cell.accessoryView = control
         cell.selectionStyle = .none

@@ -120,7 +120,7 @@ class HomePanelViewController: UIViewController, UITextFieldDelegate, HomePanelD
         updateButtons()
 
         // Gesture recognizer to dismiss the keyboard in the URLBarView when the buttonContainerView is tapped
-        let dismissKeyboardGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(HomePanelViewController.dismissKeyboard(_:)))
+        let dismissKeyboardGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(HomePanelViewController.dismissKeyboard))
         dismissKeyboardGestureRecognizer.cancelsTouchesInView = false
         buttonContainerView.addGestureRecognizer(dismissKeyboardGestureRecognizer)
     }
@@ -206,6 +206,9 @@ class HomePanelViewController: UIViewController, UITextFieldDelegate, HomePanelD
         for (index, button) in buttons.enumerated() where button == sender {
             selectedPanel = HomePanelType(rawValue: index)
             delegate?.homePanelViewController(self, didSelectPanel: index)
+            if selectedPanel == .bookmarks {
+                UnifiedTelemetry.recordEvent(category: .action, method: .view, object: .bookmarksPanel, value: .homePanelTabButton)
+            }
             break
         }
     }
@@ -213,7 +216,7 @@ class HomePanelViewController: UIViewController, UITextFieldDelegate, HomePanelD
     fileprivate func updateButtons() {
         for panel in panels {
             let button = UIButton()
-            button.addTarget(self, action: #selector(HomePanelViewController.tappedButton(_:)), for: .touchUpInside)
+            button.addTarget(self, action: #selector(HomePanelViewController.tappedButton), for: .touchUpInside)
             if let image = UIImage.templateImageNamed("panelIcon\(panel.imageName)") {
                 button.setImage(image, for: UIControlState.normal)
             }

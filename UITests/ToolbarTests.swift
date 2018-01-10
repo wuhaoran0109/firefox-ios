@@ -12,18 +12,19 @@ class ToolbarTests: KIFTestCase, UITextFieldDelegate {
 
     override func setUp() {
         webRoot = SimplePageServer.start()
-        BrowserUtils.dismissFirstRunUI(tester())
+        BrowserUtils.configEarlGrey()
+        BrowserUtils.dismissFirstRunUI()
     }
 
     func testURLEntry() {
         let textField = tester().waitForView(withAccessibilityIdentifier: "url") as! UITextField
-        tester().tapView(withAccessibilityIdentifier: "url")
-        tester().enterText(intoCurrentFirstResponder: "foobar")
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("url")).perform(grey_tap())
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("address")).perform(grey_replaceText("foobar"))
         tester().tapView(withAccessibilityIdentifier: "goBack")
         XCTAssertNotEqual(textField.text, "foobar", "Verify that the URL bar text clears on about:home")
 
         // 127.0.0.1 doesn't cause http:// to be hidden. localhost does. Both will work.
-        let localhostURL = webRoot.replacingOccurrences(of: "127.0.0.1", with: "localhost", options: NSString.CompareOptions(), range: nil)
+        let localhostURL = webRoot.replacingOccurrences(of: "127.0.0.1", with: "localhost", options: [], range: nil)
         let url = "\(localhostURL)/numberedPage.html?page=1"
 
         // URL without "http://".
@@ -32,22 +33,26 @@ class ToolbarTests: KIFTestCase, UITextFieldDelegate {
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("url")).perform(grey_tap())
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("address")).perform(grey_replaceText(url))
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("address")).perform(grey_typeText("\n"))
+
         tester().waitForAnimationsToFinish()
         XCTAssertEqual(textField.text, displayURL, "URL matches page URL")
 
-        tester().tapView(withAccessibilityIdentifier: "url")
-        tester().enterText(intoCurrentFirstResponder: "foobar")
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("url")).perform(grey_tap())
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("address")).perform(grey_replaceText("foobar"))
         tester().tapView(withAccessibilityIdentifier: "goBack")
+        tester().waitForAnimationsToFinish()
         XCTAssertEqual(textField.text, displayURL, "Verify that text reverts to page URL after entering text")
 
-        tester().tapView(withAccessibilityIdentifier: "url")
-        tester().clearTextFromFirstResponder()
-        tester().tapView(withAccessibilityIdentifier: "goBack")
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("url")).perform(grey_tap())
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("address")).perform(grey_replaceText(" "))
+
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("goBack")).perform(grey_tap())
+        tester().waitForAnimationsToFinish()
         XCTAssertEqual(textField.text, displayURL, "Verify that text reverts to page URL after clearing text")
     }
 
     func testUserInfoRemovedFromURL() {
-        let hostWithUsername = webRoot.replacingOccurrences(of: "127.0.0.1", with: "username:password@127.0.0.1", options: NSString.CompareOptions(), range: nil)
+        let hostWithUsername = webRoot.replacingOccurrences(of: "127.0.0.1", with: "username:password@127.0.0.1", options: [], range: nil)
         let urlWithUserInfo = "\(hostWithUsername)/numberedPage.html?page=1"
         let url = "\(webRoot!)/numberedPage.html?page=1"
 
@@ -76,7 +81,7 @@ class ToolbarTests: KIFTestCase, UITextFieldDelegate {
             let value = UIInterfaceOrientation.portrait.rawValue
             UIDevice.current.setValue(value, forKey: "orientation")
         }
-        BrowserUtils.resetToAboutHome(tester())
-        BrowserUtils.clearPrivateData(tester: tester())
+        BrowserUtils.resetToAboutHome()
+        BrowserUtils.clearPrivateData()
     }
 }

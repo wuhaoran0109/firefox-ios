@@ -17,13 +17,14 @@ class LoginManagerTests: KIFTestCase {
         webRoot = SimplePageServer.start()
         generateLogins()
         BrowserUtils.dismissFirstRunUI()
+        BrowserUtils.configEarlGrey()
     }
     
     override func tearDown() {
         super.tearDown()
         clearLogins()
         PasscodeUtils.resetPasscode()
-        BrowserUtils.resetToAboutHome(tester())
+        BrowserUtils.resetToAboutHome()
     }
     
     fileprivate func openLoginManager() {
@@ -54,9 +55,19 @@ class LoginManagerTests: KIFTestCase {
     }
     
     fileprivate func closeLoginManager() {
-        tester().tapView(withAccessibilityLabel: "Settings")
-        tester().tapView(withAccessibilityLabel: "Done")
-    }
+        EarlGrey.select(elementWithMatcher:grey_allOf([grey_accessibilityLabel("Settings"), grey_kindOfClass(NSClassFromString("UIButtonLabel")!)])).perform(grey_tap())
+
+        let DoneAppeared = GREYCondition(name: "Wait for the Done button", block: { () -> Bool in
+            var errorOrNil: NSError?
+            EarlGrey.select(elementWithMatcher: grey_accessibilityID("AppSettingsTableViewController.navigationItem.leftBarButtonItem"))
+                .assert(grey_notNil(), error: &errorOrNil)
+            let success = errorOrNil == nil
+            return success
+        })
+        let success = DoneAppeared?.wait(withTimeout: 10)
+        GREYAssertTrue(success!, reason: "Failed to see Done button")
+        EarlGrey.select(elementWithMatcher: grey_accessibilityID("AppSettingsTableViewController.navigationItem.leftBarButtonItem")).perform(grey_tap())
+   }
     
     fileprivate func generateLogins() {
         let profile = (UIApplication.shared.delegate as! AppDelegate).profile!
@@ -119,8 +130,10 @@ class LoginManagerTests: KIFTestCase {
         // In simulator, the typing is too fast for the screen to be updated properly
         // pausing after 'password' (which all login password contains) to update the screen seems to make the test reliable
         tester().enterText(intoCurrentFirstResponder: "k10")
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         tester().waitForAnimationsToFinish()
         tester().enterText(intoCurrentFirstResponder: "@email.com")
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         tester().waitForAnimationsToFinish()
         list = tester().waitForView(withAccessibilityIdentifier: "Login List") as! UITableView
         tester().waitForView(withAccessibilityLabel: "k10@email.com")
@@ -134,8 +147,9 @@ class LoginManagerTests: KIFTestCase {
         tester().waitForAnimationsToFinish()
         tester().enterText(intoCurrentFirstResponder: "http://k10")
         tester().waitForAnimationsToFinish()
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         tester().enterText(intoCurrentFirstResponder: ".com")
-        tester().waitForAnimationsToFinish()
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         list = tester().waitForView(withAccessibilityIdentifier: "Login List") as! UITableView
         tester().waitForView(withAccessibilityLabel: "k10@email.com")
         XCTAssertEqual(list.numberOfRows(inSection: 0), 1)
@@ -147,11 +161,13 @@ class LoginManagerTests: KIFTestCase {
         tester().waitForAnimationsToFinish()
         tester().enterText(intoCurrentFirstResponder: "password")
         tester().waitForAnimationsToFinish()
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         tester().enterText(intoCurrentFirstResponder: "d9")
+        tester().waitForAnimationsToFinish()
         list = tester().waitForView(withAccessibilityIdentifier: "Login List") as! UITableView
         tester().waitForView(withAccessibilityLabel: "d9@email.com")
+        tester().wait(forTimeInterval: 3)                     // Wait until the table is updated
         XCTAssertEqual(list.numberOfRows(inSection: 0), 1)
-        
         tester().tapView(withAccessibilityLabel: "Clear Search")
         // Filter by something that doesn't match anything
         tester().waitForView(withAccessibilityLabel: "a0@email.com, http://a0.com")
@@ -226,7 +242,7 @@ class LoginManagerTests: KIFTestCase {
         // Tap the 'Open & Fill' menu option  just checks to make sure we navigate to the web page
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("websiteField")).perform(grey_tap())
         waitForMatcher(name: "Open & Fill")
-        
+
         tester().wait(forTimeInterval: 2)
         tester().waitForViewWithAccessibilityValue("a0.com/")
         XCTAssertEqual(UIPasteboard.general.string, "http://a0.com")
@@ -244,7 +260,7 @@ class LoginManagerTests: KIFTestCase {
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("websiteField")).perform(grey_tap())
         waitForMatcher(name: "Open & Fill")
         
-        tester().wait(forTimeInterval: 5)
+        tester().wait(forTimeInterval: 10)
         tester().waitForViewWithAccessibilityValue("a0.com/")
     }
     
@@ -276,7 +292,7 @@ class LoginManagerTests: KIFTestCase {
         EarlGrey.select(elementWithMatcher: grey_accessibilityID("websiteField")).perform(grey_tap())
         waitForMatcher(name: "Open & Fill")
         
-        tester().wait(forTimeInterval: 2)
+        tester().wait(forTimeInterval: 10)
         tester().waitForViewWithAccessibilityValue("a0.com/")
     }
     

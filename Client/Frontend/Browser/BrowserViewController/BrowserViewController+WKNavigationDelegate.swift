@@ -123,7 +123,7 @@ extension BrowserViewController: WKNavigationDelegate {
                 UIApplication.shared.open(url, options: [:])
             }
 
-            LeanplumIntegration.sharedInstance.track(eventName: .openedMailtoLink)
+            LeanPlumClient.shared.track(event: .openedMailtoLink)
             decisionHandler(WKNavigationActionPolicy.cancel)
             return
         }
@@ -146,7 +146,7 @@ extension BrowserViewController: WKNavigationDelegate {
             UIApplication.shared.open(url, options: [:]) { openedURL in
                 if !openedURL {
                     let alert = UIAlertController(title: Strings.UnableToOpenURLErrorTitle, message: Strings.UnableToOpenURLError, preferredStyle: .alert)
-                    alert.addAction(UIAlertAction(title: Strings.OKString, style: UIAlertActionStyle.default, handler: nil))
+                    alert.addAction(UIAlertAction(title: Strings.OKString, style: .default, handler: nil))
                     self.present(alert, animated: true, completion: nil)
                 }
             }
@@ -183,8 +183,8 @@ extension BrowserViewController: WKNavigationDelegate {
         // The challenge may come from a background tab, so ensure it's the one visible.
         tabManager.selectTab(tab)
 
-        let loginsHelper = tab.getHelper(name: LoginsHelper.name()) as? LoginsHelper
-        Authenticator.handleAuthRequest(self, challenge: challenge, loginsHelper: loginsHelper).uponQueue(DispatchQueue.main) { res in
+        let loginsHelper = tab.getContentScript(name: LoginsHelper.name()) as? LoginsHelper
+        Authenticator.handleAuthRequest(self, challenge: challenge, loginsHelper: loginsHelper).uponQueue(.main) { res in
             if let credentials = res.successValue {
                 completionHandler(.useCredential, credentials.credentials)
             } else {

@@ -87,18 +87,15 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
 
         startBrowsingButton = UIButton()
         startBrowsingButton.backgroundColor = UIColor.clear
-        startBrowsingButton.setTitle(IntroViewControllerUX.StartBrowsingButtonTitle, for: UIControlState())
-        startBrowsingButton.setTitleColor(IntroViewControllerUX.StartBrowsingButtonColor, for: UIControlState())
-        startBrowsingButton.addTarget(self, action: #selector(IntroViewController.SELstartBrowsing), for: UIControlEvents.touchUpInside)
+        startBrowsingButton.setTitle(IntroViewControllerUX.StartBrowsingButtonTitle, for: [])
+        startBrowsingButton.setTitleColor(IntroViewControllerUX.StartBrowsingButtonColor, for: [])
+        startBrowsingButton.addTarget(self, action: #selector(IntroViewController.SELstartBrowsing), for: .touchUpInside)
         startBrowsingButton.accessibilityIdentifier = "IntroViewController.startBrowsingButton"
 
         view.addSubview(startBrowsingButton)
         startBrowsingButton.snp.makeConstraints { (make) -> Void in
-            if #available(iOS 11.0, *) {
-                make.left.right.bottom.equalTo(self.view.safeAreaLayoutGuide)
-            } else {
-                make.left.right.bottom.equalTo(self.view)
-            }
+            make.left.right.equalTo(self.view)
+            make.bottom.equalTo(self.view.safeArea.bottom)
             make.height.equalTo(IntroViewControllerUX.StartBrowsingButtonHeight)
         }
 
@@ -133,7 +130,7 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
         pageControl.currentPageIndicatorTintColor = UIColor.black
         pageControl.numberOfPages = IntroViewControllerUX.NumberOfCards
         pageControl.accessibilityIdentifier = "IntroViewController.pageControl"
-        pageControl.addTarget(self, action: #selector(IntroViewController.changePage), for: UIControlEvents.valueChanged)
+        pageControl.addTarget(self, action: #selector(IntroViewController.changePage), for: .valueChanged)
 
         view.addSubview(pageControl)
         pageControl.snp.makeConstraints { (make) -> Void in
@@ -148,7 +145,7 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
             titleLabel.numberOfLines = 2
             titleLabel.adjustsFontSizeToFitWidth = true
             titleLabel.minimumScaleFactor = IntroViewControllerUX.MinimumFontScale
-            titleLabel.textAlignment = NSTextAlignment.center
+            titleLabel.textAlignment = .center
             titleLabel.text = title
             titleLabels.append(titleLabel)
             introView.addSubview(titleLabel)
@@ -181,16 +178,15 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
         // Sync card, with sign in to sync button.
         signInButton = UIButton()
         signInButton.backgroundColor = IntroViewControllerUX.SignInButtonColor
-        signInButton.setTitle(IntroViewControllerUX.SignInButtonTitle, for: UIControlState())
-        signInButton.setTitleColor(UIColor.white, for: UIControlState())
+        signInButton.setTitle(IntroViewControllerUX.SignInButtonTitle, for: [])
+        signInButton.setTitleColor(UIColor.white, for: [])
         signInButton.clipsToBounds = true
-        signInButton.addTarget(self, action: #selector(IntroViewController.SELlogin), for: UIControlEvents.touchUpInside)
+        signInButton.addTarget(self, action: #selector(IntroViewController.SELlogin), for: .touchUpInside)
         signInButton.snp.makeConstraints { (make) -> Void in
             make.height.equalTo(IntroViewControllerUX.SignInButtonHeight)
         }
         
         let syncCardView = UIView()
-        // introViews.append(syncCardView)
         addCard(title: IntroViewControllerUX.CardTitleSync, text: IntroViewControllerUX.CardTextSync, introView: syncCardView)
 
         syncCardView.addSubview(signInButton)
@@ -229,9 +225,10 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
         setActiveIntroView(introViews[0], forPage: 0)
         setupDynamicFonts()
     }
+  
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        NotificationCenter.default.addObserver(self, selector: #selector(SELDynamicFontChanged(_:)), name: NotificationDynamicFontChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(SELDynamicFontChanged), name: NotificationDynamicFontChanged, object: nil)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -255,7 +252,7 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
         for i in 0..<IntroViewControllerUX.NumberOfCards {
             if let imageView = slideContainer.subviews[i] as? UIImageView {
                 imageView.frame = CGRect(x: CGFloat(i)*scaledWidthOfSlide, y: 0, width: scaledWidthOfSlide, height: scaledHeightOfSlide)
-                imageView.contentMode = UIViewContentMode.scaleAspectFit
+                imageView.contentMode = .scaleAspectFit
             }
         }
         slideContainer.frame = CGRect(x: 0, y: 0, width: scaledWidthOfSlide * CGFloat(IntroViewControllerUX.NumberOfCards), height: scaledHeightOfSlide)
@@ -277,32 +274,8 @@ class IntroViewController: UIViewController, UIScrollViewDelegate {
     }
 
     func SELstartBrowsing() {
-        LeanplumIntegration.sharedInstance.track(eventName: .dismissedOnboarding)
+        LeanPlumClient.shared.track(event: .dismissedOnboarding)
         delegate?.introViewControllerDidFinish(self, requestToLogin: false)
-    }
-
-    func SELback() {
-        if introView == introViews[1] {
-            setActiveIntroView(introViews[0], forPage: 0)
-            scrollView.scrollRectToVisible(scrollView.subviews[0].frame, animated: true)
-            pageControl.currentPage = 0
-        } else if introView == introViews[2] {
-            setActiveIntroView(introViews[1], forPage: 1)
-            scrollView.scrollRectToVisible(scrollView.subviews[1].frame, animated: true)
-            pageControl.currentPage = 1
-        }
-    }
-
-    func SELforward() {
-        if introView == introViews[0] {
-            setActiveIntroView(introViews[1], forPage: 1)
-            scrollView.scrollRectToVisible(scrollView.subviews[1].frame, animated: true)
-            pageControl.currentPage = 1
-        } else if introView == introViews[1] {
-            setActiveIntroView(introViews[2], forPage: 2)
-            scrollView.scrollRectToVisible(scrollView.subviews[2].frame, animated: true)
-            pageControl.currentPage = 2
-        }
     }
 
     func SELlogin() {

@@ -153,7 +153,7 @@ class FxALoginHelper {
             account.updateProfile()
         }
         
-        let leanplum = LeanplumIntegration.sharedInstance
+        let leanplum = LeanPlumClient.shared
         if leanplum.getEnabled() && leanplum.isFxAPrePushEnabled() {
             // If Leanplum A/B push notification tests are enabled, defer to them for
             // displaying the pre-push permission dialog. If user dismisses it, we will still have

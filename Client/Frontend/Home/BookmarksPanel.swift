@@ -9,8 +9,6 @@ import XCGLogger
 
 private let log = Logger.browserLogger
 
-let BookmarkStatusChangedNotification = "BookmarkStatusChangedNotification"
-
 // MARK: - Placeholder strings for Bug 1232810.
 
 let deleteWarningTitle = NSLocalizedString("This folder isn’t empty.", tableName: "BookmarkPanelDeleteConfirm", comment: "Title of the confirmation alert when the user tries to delete a folder that still contains bookmarks and/or folders.")
@@ -46,7 +44,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
     var refreshControl: UIRefreshControl?
 
     fileprivate lazy var longPressRecognizer: UILongPressGestureRecognizer = {
-        return UILongPressGestureRecognizer(target: self, action: #selector(BookmarksPanel.longPress(_:)))
+        return UILongPressGestureRecognizer(target: self, action: #selector(longPress))
     }()
     fileprivate lazy var emptyStateOverlayView: UIView = self.createEmptyStateOverlayView()
 
@@ -56,7 +54,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
 
     init() {
         super.init(nibName: nil, bundle: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(BookmarksPanel.notificationReceived(_:)), name: NotificationFirefoxAccountChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(notificationReceived), name: NotificationFirefoxAccountChanged, object: nil)
 
         self.tableView.register(SeparatorTableCell.self, forCellReuseIdentifier: BookmarkSeparatorCellIdentifier)
         self.tableView.register(BookmarkFolderTableViewCell.self, forCellReuseIdentifier: BookmarkFolderCellIdentifier)
@@ -150,7 +148,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
         let welcomeLabel = UILabel()
         overlayView.addSubview(welcomeLabel)
         welcomeLabel.text = emptyBookmarksText
-        welcomeLabel.textAlignment = NSTextAlignment.center
+        welcomeLabel.textAlignment = .center
         welcomeLabel.font = DynamicFontHelper.defaultHelper.DeviceFontLight
         welcomeLabel.textColor = BookmarksPanelUX.WelcomeScreenItemTextColor
         welcomeLabel.numberOfLines = 0
@@ -210,7 +208,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
     }
 
     @objc fileprivate func longPress(_ longPressGestureRecognizer: UILongPressGestureRecognizer) {
-        guard longPressGestureRecognizer.state == UIGestureRecognizerState.began else { return }
+        guard longPressGestureRecognizer.state == .began else { return }
         let touchPoint = longPressGestureRecognizer.location(in: tableView)
         guard let indexPath = tableView.indexPathForRow(at: touchPoint) else { return }
         presentContextMenu(for: indexPath)
@@ -333,7 +331,8 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
         switch bookmark {
         case let item as BookmarkItem:
             homePanelDelegate?.homePanel(self, didSelectURLString: item.url, visitType: VisitType.bookmark)
-            LeanplumIntegration.sharedInstance.track(eventName: .openedBookmark)
+            LeanPlumClient.shared.track(event: .openedBookmark)
+            UnifiedTelemetry.recordEvent(category: .action, method: .open, object: .bookmark, value: .bookmarksPanel)
             break
 
         case let folder as BookmarkFolder:
@@ -343,7 +342,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
             nextController.bookmarkFolder = folder
             nextController.homePanelDelegate = self.homePanelDelegate
             nextController.profile = self.profile
-            source.modelFactory.uponQueue(DispatchQueue.main) { maybe in
+            source.modelFactory.uponQueue(.main) { maybe in
                 guard let factory = maybe.successValue else {
                     // Nothing we can do.
                     return
@@ -395,6 +394,7 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
 
         let delete = UITableViewRowAction(style: UITableViewRowActionStyle.default, title: title, handler: { (action, indexPath) in
             self.deleteBookmark(indexPath: indexPath, source: source)
+            UnifiedTelemetry.recordEvent(category: .action, method: .delete, object: .bookmark, value: .bookmarksPanel, extras: ["gesture": "swipe"])
         })
 
         return [delete]
@@ -438,9 +438,6 @@ class BookmarksPanel: SiteTableViewController, HomePanel {
         self.tableView.deleteRows(at: [indexPath], with: UITableViewRowAnimation.left)
         self.tableView.endUpdates()
         self.updateEmptyPanelState()
-
-        NotificationCenter.default.post(name: NSNotification.Name(rawValue: BookmarkStatusChangedNotification), object: bookmark, userInfo: ["added": false]
-        )
     }
 }
 
@@ -471,6 +468,7 @@ extension BookmarksPanel: HomePanelContextMenu {
         if source.current.itemIsEditableAtIndex(indexPath.row) {
             let removeAction = PhotonActionSheetItem(title: Strings.RemoveBookmarkContextMenuTitle, iconString: "action_bookmark_remove", handler: { action in
                 self.deleteBookmark(indexPath: indexPath, source: source)
+                UnifiedTelemetry.recordEvent(category: .action, method: .delete, object: .bookmark, value: .bookmarksPanel, extras: ["gesture": "long-press"])
             })
             actions.append(removeAction)
         }
@@ -497,8 +495,8 @@ class BookmarkFolderTableViewCell: TwoLineTableViewCell {
         textLabel?.tintColor = BookmarksPanelUX.BookmarkFolderTextColor
 
         imageView?.image = UIImage(named: "bookmarkFolder")
-        accessoryType = UITableViewCellAccessoryType.disclosureIndicator
-        separatorInset = UIEdgeInsets.zero
+        accessoryType = .disclosureIndicator
+        separatorInset = .zero
     }
 
     override func layoutSubviews() {
@@ -547,7 +545,7 @@ fileprivate class BookmarkFolderTableViewHeader: UITableViewHeaderFooterView {
 
         isUserInteractionEnabled = true
 
-        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(BookmarkFolderTableViewHeader.viewWasTapped(_:)))
+        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(viewWasTapped))
         tapGestureRecognizer.numberOfTapsRequired = 1
         addGestureRecognizer(tapGestureRecognizer)
 

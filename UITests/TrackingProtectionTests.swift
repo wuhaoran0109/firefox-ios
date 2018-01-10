@@ -14,13 +14,14 @@ class TrackingProtectionTests: KIFTestCase {
     override func setUp() {
         super.setUp()
         webRoot = SimplePageServer.start()
+        BrowserUtils.configEarlGrey()
         BrowserUtils.dismissFirstRunUI()
     }
     
     override func tearDown() {
-        BrowserUtils.resetToAboutHome(tester())
-        BrowserUtils.clearPrivateData(tester: tester())
         super.tearDown()
+        BrowserUtils.resetToAboutHome()
+        BrowserUtils.clearPrivateData()
     }
 
     private func checkTrackingProtection(isBlocking: Bool) {

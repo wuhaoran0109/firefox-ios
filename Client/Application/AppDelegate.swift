@@ -150,7 +150,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
 
         self.window!.rootViewController = rootViewController
 
-        NotificationCenter.default.addObserver(forName: NSNotification.Name.FSReadingListAddReadingListItem, object: nil, queue: nil) { (notification) -> Void in
+        NotificationCenter.default.addObserver(forName: .FSReadingListAddReadingListItem, object: nil, queue: nil) { (notification) -> Void in
             if let userInfo = notification.userInfo, let url = userInfo["URL"] as? URL {
                 let title = (userInfo["Title"] as? String) ?? ""
                 profile.readingList?.createRecordWithURL(url.absoluteString, title: title, addedBy: UIDevice.current.name)
@@ -163,9 +163,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
 
         adjustIntegration = AdjustIntegration(profile: profile)
 
-        let leanplum = LeanplumIntegration.sharedInstance
-        leanplum.setup(profile: profile)
-        leanplum.setEnabled(true)
+        if LeanPlumClient.shouldEnable(profile: profile) {
+            LeanPlumClient.shared.setup(profile: profile)
+            LeanPlumClient.shared.set(enabled: true)
+        }
 
         self.updateAuthenticationInfo()
         SystemUtils.onFirstRun()
@@ -219,7 +220,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
 
             let controller = SettingsNavigationController(rootViewController: settingsTableViewController)
             controller.popoverDelegate = self.browserViewController
-            controller.modalPresentationStyle = UIModalPresentationStyle.formSheet
+            controller.modalPresentationStyle = .formSheet
 
             rootNav.present(controller, animated: true, completion: nil)
 
@@ -377,7 +378,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
             if AppConstants.MOZ_FXA_DEEP_LINK_FORM_FILL {
                 // FxA form filling requires a `signin` query param and host = fxa-signin
                 // Ex. firefox://fxa-signin?signin=<token>&someQuery=<data>...
-                guard let signinQuery = query["signin"] else {
+                guard query["signin"] != nil else {
                     break
                 }
                 let fxaParams: FxALaunchParams
@@ -392,9 +393,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
     }
 
     func launchFxAFromURL(_ params: FxALaunchParams) {
-        guard params.query != nil else {
-            return
-        }
         self.browserViewController.presentSignInViewController(params)
     }
 
@@ -406,7 +404,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
             self.browserViewController.openBlankNewTab(focusLocationField: true, isPrivate: isPrivate)
         }
 
-        LeanplumIntegration.sharedInstance.track(eventName: .openedNewTab, withParameters: ["Source": "External App or Extension" as AnyObject])
+        LeanPlumClient.shared.track(event: .openedNewTab, withParameters: ["Source": "External App or Extension" as AnyObject])
     }
 
     // We sync in the foreground only, to avoid the possibility of runaway resource usage.
@@ -458,6 +456,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
                 self.launchFromURL(params)
             }
         }
+
+        UnifiedTelemetry.recordEvent(category: .action, method: .foreground, object: .app)
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
@@ -472,6 +472,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
         defaults.synchronize()
 
         syncOnDidEnterBackground(application: application)
+
+        UnifiedTelemetry.recordEvent(category: .action, method: .background, object: .app)
     }
 
     fileprivate func syncOnDidEnterBackground(application: UIApplication) {
@@ -489,7 +491,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
         })
 
         if profile.hasSyncableAccount() {
-            profile.syncManager.syncEverything(why: .backgrounded).uponQueue(DispatchQueue.main) { _ in
+            profile.syncManager.syncEverything(why: .backgrounded).uponQueue(.main) { _ in
                 self.shutdownProfileWhenNotActive(application)
                 application.endBackgroundTask(taskId)
             }
@@ -501,7 +503,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
 
     fileprivate func shutdownProfileWhenNotActive(_ application: UIApplication) {
         // Only shutdown the profile if we are not in the foreground
-        guard application.applicationState != UIApplicationState.active else {
+        guard application.applicationState != .active else {
             return
         }
 
@@ -645,7 +647,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
     fileprivate func addBookmark(_ notification: UNNotification) {
         if let alertURL = notification.request.content.userInfo[TabSendURLKey] as? String,
             let title = notification.request.content.userInfo[TabSendTitleKey] as? String {
-            let tabState = TabState(isPrivate: false, desktopSite: false, isBookmarked: false, url: URL(string: alertURL), title: title, favicon: nil)
+            let tabState = TabState(isPrivate: false, desktopSite: false, url: URL(string: alertURL), title: title, favicon: nil)
                 browserViewController.addBookmark(tabState)
 
                 let userData = [QuickActions.TabURLKey: alertURL,
@@ -658,7 +660,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
         if let alertURL = notification.request.content.userInfo[TabSendURLKey] as? String,
             let title = notification.request.content.userInfo[TabSendTitleKey] as? String {
             if let urlToOpen = URL(string: alertURL) {
-                NotificationCenter.default.post(name: NSNotification.Name.FSReadingListAddReadingListItem, object: self, userInfo: ["URL": urlToOpen, "Title": title])
+                NotificationCenter.default.post(name: .FSReadingListAddReadingListItem, object: self, userInfo: ["URL": urlToOpen, "Title": title])
             }
         }
     }
@@ -673,9 +675,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
 // MARK: - Root View Controller Animations
 extension AppDelegate: UINavigationControllerDelegate {
     func navigationController(_ navigationController: UINavigationController, animationControllerFor operation: UINavigationControllerOperation, from fromVC: UIViewController, to toVC: UIViewController) -> UIViewControllerAnimatedTransitioning? {
-            if operation == UINavigationControllerOperation.push {
+            if operation == .push {
                 return BrowserToTrayAnimator()
-            } else if operation == UINavigationControllerOperation.pop {
+            } else if operation == .pop {
                 return TrayToBrowserAnimator()
             } else {
                 return nil
@@ -774,7 +776,7 @@ extension AppDelegate {
                 self.receivedURLs = receivedURLs
                 
                 // If we're in the foreground, load the queued tabs now.
-                if application.applicationState == UIApplicationState.active {
+                if application.applicationState == .active {
                     DispatchQueue.main.async {
                         self.browserViewController.loadQueuedTabs(receivedURLs: self.receivedURLs)
                         self.receivedURLs = nil

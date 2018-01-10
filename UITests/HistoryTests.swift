@@ -12,6 +12,7 @@ class HistoryTests: KIFTestCase {
     override func setUp() {
         super.setUp()
         webRoot = SimplePageServer.start()
+        BrowserUtils.configEarlGrey()
         BrowserUtils.dismissFirstRunUI()
     }
     
@@ -142,8 +143,7 @@ class HistoryTests: KIFTestCase {
     }
     
     override func tearDown() {
-        //BrowserUtils.resetToAboutHome(tester())
-        BrowserUtils.clearPrivateData(tester: tester())
+        BrowserUtils.clearPrivateData()
         super.tearDown()
     }
 }

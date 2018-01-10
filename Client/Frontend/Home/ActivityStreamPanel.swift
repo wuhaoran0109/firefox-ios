@@ -69,7 +69,7 @@ class ActivityStreamPanel: UICollectionViewController, HomePanel {
     fileprivate var sessionStart: Timestamp?
 
     fileprivate lazy var longPressRecognizer: UILongPressGestureRecognizer = {
-        return UILongPressGestureRecognizer(target: self, action: #selector(ActivityStreamPanel.longPress(_:)))
+        return UILongPressGestureRecognizer(target: self, action: #selector(ActivityStreamPanel.longPress))
     }()
 
     // Not used for displaying. Only used for calculating layout.
@@ -665,7 +665,7 @@ extension ActivityStreamPanel: DataObserverDelegate {
     }
 
     @objc fileprivate func longPress(_ longPressGestureRecognizer: UILongPressGestureRecognizer) {
-        guard longPressGestureRecognizer.state == UIGestureRecognizerState.began else { return }
+        guard longPressGestureRecognizer.state == .began else { return }
 
         let point = longPressGestureRecognizer.location(in: self.collectionView)
         guard let indexPath = self.collectionView?.indexPathForItem(at: point) else { return }
@@ -705,7 +705,7 @@ extension ActivityStreamPanel: DataObserverDelegate {
         case .pocket:
             site = Site(url: pocketStories[index].url.absoluteString, title: pocketStories[index].title)
             telemetry.reportEvent(.Click, source: .Pocket, position: index)
-            LeanplumIntegration.sharedInstance.track(eventName: .openedPocketStory, withParameters: ["Source": "Activity Stream" as AnyObject])
+            LeanPlumClient.shared.track(event: .openedPocketStory, withParameters: ["Source": "Activity Stream" as AnyObject])
         case .topSites, .highlightIntro:
             return
         }
@@ -771,9 +771,9 @@ extension ActivityStreamPanel: HomePanelContextMenu {
             self.homePanelDelegate?.homePanelDidRequestToOpenInNewTab(siteURL, isPrivate: false)
             self.telemetry.reportEvent(.NewTab, source: pingSource, position: index)
             let source = ["Source": "Activity Stream Long Press Context Menu" as AnyObject]
-            LeanplumIntegration.sharedInstance.track(eventName: .openedNewTab, withParameters: source)
+            LeanPlumClient.shared.track(event: .openedNewTab, withParameters: source)
             if Section(indexPath.section) == .pocket {
-                LeanplumIntegration.sharedInstance.track(eventName: .openedPocketStory, withParameters: source)
+                LeanPlumClient.shared.track(event: .openedPocketStory, withParameters: source)
             }
         }
 
@@ -791,6 +791,7 @@ extension ActivityStreamPanel: HomePanelContextMenu {
                     site.setBookmarked(false)
                 }
                 self.telemetry.reportEvent(.RemoveBookmark, source: pingSource, position: index)
+                UnifiedTelemetry.recordEvent(category: .action, method: .delete, object: .bookmark, value: .activityStream)
             })
         } else {
             bookmarkAction = PhotonActionSheetItem(title: Strings.BookmarkContextMenuTitle, iconString: "action_bookmark", handler: { action in
@@ -806,7 +807,8 @@ extension ActivityStreamPanel: HomePanelContextMenu {
                 site.setBookmarked(true)
                 self.profile.panelDataObservers.activityStream.refreshIfNeeded(forceHighlights: true, forceTopSites: true)
                 self.telemetry.reportEvent(.AddBookmark, source: pingSource, position: index)
-                LeanplumIntegration.sharedInstance.track(eventName: .savedBookmark)
+                LeanPlumClient.shared.track(event: .savedBookmark)
+                UnifiedTelemetry.recordEvent(category: .action, method: .add, object: .bookmark, value: .activityStream)
             })
         }
 
@@ -1001,7 +1003,7 @@ class ASHeaderView: UICollectionReusableView {
 
     lazy var moreButton: UIButton = {
         let button = UIButton()
-        button.setTitle("More", for: .normal)
+        button.setTitle(Strings.PocketMoreStoriesText, for: .normal)
         button.isHidden = true
         button.titleLabel?.font = ASHeaderViewUX.TextFont
         button.contentHorizontalAlignment = .right

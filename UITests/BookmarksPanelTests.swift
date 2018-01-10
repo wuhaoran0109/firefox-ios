@@ -13,12 +13,13 @@ class BookmarksPanelTests: KIFTestCase {
     
     override func setUp() {
         super.setUp()
+        BrowserUtils.configEarlGrey()
         BrowserUtils.dismissFirstRunUI()
 	}
 	
     override func tearDown() {
         super.tearDown()
-		BrowserUtils.resetToAboutHome(tester()) 
+		BrowserUtils.resetToAboutHome() 
     }
 
     private func getAppBookmarkStorage() -> BookmarkBufferStorage? {

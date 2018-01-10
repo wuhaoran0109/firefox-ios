@@ -10,7 +10,7 @@ import SDWebImage
 import Deferred
 import Sync
 
-class FaviconManager: TabHelper {
+class FaviconManager: TabContentScript {
     static let FaviconDidLoad = "FaviconManagerFaviconDidLoad"
     
     let profile: Profile!
@@ -24,7 +24,7 @@ class FaviconManager: TabHelper {
 
         if let path = Bundle.main.path(forResource: "Favicons", ofType: "js") {
             if let source = try? NSString(contentsOfFile: path, encoding: String.Encoding.utf8.rawValue) as String {
-                let userScript = WKUserScript(source: source, injectionTime: WKUserScriptInjectionTime.atDocumentEnd, forMainFrameOnly: true)
+                let userScript = WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
                 tab.webView!.configuration.userContentController.addUserScript(userScript)
             }
         }
@@ -61,8 +61,10 @@ class FaviconManager: TabHelper {
         let url = currentURL.absoluteString
         let site = Site(url: url, title: "")
 
+        weak var tab = tab
+
         func loadImageCompleted(_ img: UIImage?, _ url: URL?) {
-            guard let img = img, let urlString = url?.absoluteString else {
+            guard let tab = tab, let img = img, let urlString = url?.absoluteString else {
                 deferred.fill(Maybe(failure: FaviconError()))
                 return
             }
@@ -110,7 +112,7 @@ class FaviconManager: TabHelper {
                     }
                 }
             }
-            loadFavicons(tab, profile: profile, favicons: favicons).uponQueue(DispatchQueue.main) { result in
+            loadFavicons(tab, profile: profile, favicons: favicons).uponQueue(.main) { result in
                 let results = result.flatMap({ $0.successValue })
                 let faviconsReadOnly = favicons
                 if results.count == 1 && faviconsReadOnly[0].type == .guess {

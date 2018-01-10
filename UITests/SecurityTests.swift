@@ -11,6 +11,7 @@ class SecurityTests: KIFTestCase {
     
     override func setUp() {
         webRoot = SimplePageServer.start()
+        BrowserUtils.configEarlGrey()
         BrowserUtils.dismissFirstRunUI()
         super.setUp()
     }
@@ -101,8 +102,8 @@ class SecurityTests: KIFTestCase {
     }
     
     override func tearDown() {
-        BrowserUtils.resetToAboutHome(tester())
-        BrowserUtils.clearPrivateData(tester: tester())
+        BrowserUtils.resetToAboutHome()
+        BrowserUtils.clearPrivateData()
         super.tearDown()
     }
 }

@@ -11,12 +11,13 @@ class AuthenticationTests: KIFTestCase {
     override func setUp() {
         super.setUp()
         webRoot = SimplePageServer.start()
+        BrowserUtils.configEarlGrey()
 		BrowserUtils.dismissFirstRunUI()
 	}
 	
     override func tearDown() {
-		BrowserUtils.resetToAboutHome(tester())
-		BrowserUtils.clearPrivateData(tester: tester())
+		BrowserUtils.resetToAboutHome()
+		BrowserUtils.clearPrivateData()
 		super.tearDown()
     }
 

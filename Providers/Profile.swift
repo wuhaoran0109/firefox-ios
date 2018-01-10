@@ -684,9 +684,9 @@ open class BrowserProfile: Profile {
 
             let center = NotificationCenter.default
             center.addObserver(self, selector: #selector(onDatabaseWasRecreated(notification:)), name: NotificationDatabaseWasRecreated, object: nil)
-            center.addObserver(self, selector: #selector(onLoginDidChange(_:)), name: NotificationDataLoginDidChange, object: nil)
-            center.addObserver(self, selector: #selector(onStartSyncing(_:)), name: NotificationProfileDidStartSyncing, object: nil)
-            center.addObserver(self, selector: #selector(onFinishSyncing(_:)), name: NotificationProfileDidFinishSyncing, object: nil)
+            center.addObserver(self, selector: #selector(onLoginDidChange), name: NotificationDataLoginDidChange, object: nil)
+            center.addObserver(self, selector: #selector(onStartSyncing), name: NotificationProfileDidStartSyncing, object: nil)
+            center.addObserver(self, selector: #selector(onFinishSyncing), name: NotificationProfileDidFinishSyncing, object: nil)
             center.addObserver(self, selector: #selector(onBookmarkBufferValidated(notification:)), name: NotificationBookmarkBufferValidated, object: nil)
         }
 
@@ -1131,6 +1131,8 @@ open class BrowserProfile: Profile {
                 log.debug("engines to enable: \(enginesEnablements.flatMap { $0.value ? $0.key : nil })")
                 log.debug("engines to disable: \(enginesEnablements.flatMap { !$0.value ? $0.key : nil })")
             }
+
+            authState?.clientName = account.deviceName
 
             let readyDeferred = SyncStateMachine(prefs: self.prefsForSync).toReady(authState!)
 
